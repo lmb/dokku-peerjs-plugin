@@ -1,4 +1,4 @@
-RabbitMQ (single container) plugin for Dokku
+PeerJS server plugin for Dokku
 ============================================
 
 Project: https://github.com/progrium/dokku
@@ -11,7 +11,7 @@ Instalation
 -----------
 ```
 cd /var/lib/dokku/plugins
-git clone https://github.com/jlachowski/dokku-rabbitmq-single-plugin.git rabbitmq
+git clone https://github.com/lmb/dokku-peerjs-plugin.git peerjs
 dokku plugins-install
 ```
 
@@ -28,11 +28,7 @@ $ dokku help
     rabbitmq:list                                 List all virtual hosts
 ```
 
-TODO:
------
-- write the list command
-- add peristent logs
 
 Thanks
 ------
-This is partially based on the dokku-postgresql-plugin: https://github.com/jeffutter/dokku-postgresql-plugin
+This is partially based on the dokku-postgresql-plugin: https://github.com/jeffutter/dokku-postgresql-plugin and the dokku-rabbitmq-single-plugin

@@ -3,142 +3,28 @@ set -e;
 
 APP=$2
 
-PLUGIN_NAME="rabbitmq-single"
-PLUGIN_ALIAS="broker"
-HOST_DIR="$DOKKU_ROOT/.$PLUGIN_NAME"
-HOST_APP_DIR="$DOKKU_ROOT/.$PLUGIN_NAME/$APP"
-CONTAINER_IMAGE="jlachowski/rabbitmq-single"
+PLUGIN_NAME="peerjs"
+CONTAINER_IMAGE="peerjs-server"
 CONTAINER_NAME="${PLUGIN_NAME}"
-RABBITMQ_PORT=5672
-RABBITMQ_ADMIN_PORT=15672
-RABBITMQ_ADMIN='admin'
-
-check_exists() {
-  if [[ ! -d "$DOKKU_ROOT/$APP" ]]; then
-    echo "App must exist before creating rabbitmq vhost for it"
-    exit 1
-  fi
-}
-
-check_app() {
-  if [[ -z "$APP" ]]; then
-    echo "You must specify an app name"
-    exit 1
-  fi
-}
+PEERJS_PORT=9000
 
 check_container() {
   if [[ -z "$id" ]]; then
-    echo "Rabbitmq container not started cannot continue. Start with dokku rabbitmq:start"
+    echo "PeerJS container not started cannot continue. Start with dokku peerjs:start"
     exit 1
   fi
 }
 
 id=$(docker ps | grep "$CONTAINER_NAME" |  awk '{print $1}')
-if [[ -n "$id" ]]; then
-  rabbitmq_private_ip=$(docker inspect ${id} | grep IPAddress | awk '{ print $2 }' | tr -d ',"')
-fi
-
-add_vhost() {
-    curl -i -u $RABBITMQ_ADMIN:$1 -H "content-type:application/json" -XPUT http://$rabbitmq_private_ip:$RABBITMQ_ADMIN_PORT/api/vhosts/$2
-}
-
-add_user() {
-    curl -i -u $RABBITMQ_ADMIN:$1 -H "content-type:application/json" -XPUT -d'{"password":"'"$4"'", "tags":""}' http://$rabbitmq_private_ip:$RABBITMQ_ADMIN_PORT/api/users/$3 
-    curl -i -u $RABBITMQ_ADMIN:$1 -H "content-type:application/json" -XPUT -d'{"configure":".*","write":".*","read":".*"}' http://$rabbitmq_private_ip:$RABBITMQ_ADMIN_PORT/api/permissions/$2/$3
-}
 
 case "$1" in
-  rabbitmq:create)
-    check_container
-    check_app
-    check_exists
-
-    if [[ -e "$HOST_DIR/pass_$APP" ]]; then
-        app_pw=$(cat "$HOST_DIR/pass_$APP")
-    else
-        app_pw=$(openssl rand -base64 16|base64)
-        echo $app_pw > "$HOST_DIR/pass_$APP"
-        chmod 600 "$HOST_DIR/pass_$APP"
-    fi
-    admin_pw=$(cat "$HOST_DIR/admin_pw")
-
-    add_vhost "$admin_pw" "host_$APP"
-    add_user "$admin_pw" "host_$APP" $APP $app_pw 
-    dokku rabbitmq:link $APP
-    echo
-    echo "-----> Rabbitmq virtual host for $APP created"
-    ;;
-  rabbitmq:link)
-    check_container
-    check_app
-    check_exists
-    
-    app_pw=$(cat "$HOST_DIR/pass_$APP")
-    dokku link:create "$APP" "$CONTAINER_NAME" "$PLUGIN_ALIAS"
-    # Write BROKER_URL to app's ENV file using dokku command
-    dokku config:set $APP "BROKER_SCHEME=amqp" "BROKER_USERNAME=$APP" "BROKER_PASSWORD=$app_pw" "BROKER_PATH=/host_$APP"
-    dokku rabbitmq:config_save
-    echo
-    echo "-----> $APP linked to $CONTAINER_NAME container"
-    ;;
-  rabbitmq:delete)
-    check_container
-    check_app
-    check_exists
-
-    admin_pw=$(cat "$HOST_DIR/admin_pw")
-    curl -i -u $RABBITMQ_ADMIN:$admin_pw -H "content-type:application/json" -XDELETE http://$rabbitmq_private_ip:$RABBITMQ_ADMIN_PORT/api/users/$APP
-    curl -i -u $RABBITMQ_ADMIN:$admin_pw -H "content-type:application/json" -XDELETE http://$rabbitmq_private_ip:$RABBITMQ_ADMIN_PORT/api/vhosts/host_$APP
-    app_pw_file="$HOST_DIR/pass_$APP"
-    if [[ -e "${app_pw_file}" ]]; then
-        rm -f "$app_pw_file"
-    fi
-    dokku config:unset $APP BROKER_SCHEME BROKER_USERNAME BROKER_PASSWORD BROKER_PATH
-    dokku rabbitmq:config_save
-    echo
-    echo "-----> Rabbitmq virtual host for $APP removed"
-    ;;
-  rabbitmq:rebuild)
-    check_container
-    check_app
-    check_exists
-    dokku rabbitmq:delete $APP
-    dokku rabbitmq:create $APP
-    ;;
-  rabbitmq:list)
-    check_container
-    #TODO: parse the output
-    echo "List of all vhosts on rabbitmq server"
-    admin_pw=$(cat "$HOST_DIR/admin_pw")
-    curl -i -u $RABBITMQ_ADMIN:$admin_pw http://$rabbitmq_private_ip:$RABBITMQ_ADMIN_PORT/api/vhosts
-    ;;
-  rabbitmq:config)
-    check_container
-    admin_pw=$(cat "$HOST_DIR/admin_pw")
-    curl -u $RABBITMQ_ADMIN:$admin_pw http://$rabbitmq_private_ip:$RABBITMQ_ADMIN_PORT/api/definitions
-    ;;
-  rabbitmq:config_save)
-    check_container
-    admin_pw=$(cat "$HOST_DIR/admin_pw")
-    curl -s -u $RABBITMQ_ADMIN:$admin_pw http://$rabbitmq_private_ip:$RABBITMQ_ADMIN_PORT/api/definitions > "$HOST_DIR/config.json"
-    echo "-----> Config saved"
-    ;;
-  rabbitmq:config_load)
-    check_container
-    admin_pw=$(cat "$HOST_DIR/admin_pw")
-    if [[ -e "$HOST_DIR/config.json" ]]; then
-        curl -s -u $RABBITMQ_ADMIN:$admin_pw -H "content-type:application/json" -X POST -d "@$HOST_DIR/config.json" http://$rabbitmq_private_ip:$RABBITMQ_ADMIN_PORT/api/definitions
-	echo "-----> Config loaded"
-    fi
-    ;;
-  rabbitmq:start)
+  peerjs:start)
     if [[ "$id" != "" ]]; then
-        echo "Rabbitmq container already running with ID: ${id}"
+        echo "PeerJS container already running with ID: ${id}"
     else
         image=$(docker images | grep "$CONTAINER_IMAGE" |  awk '{print $3}')
         if [[ -z $image ]]; then
-            echo "Rabbitmq image not found... Did you run 'dokku plugins-install' ?"
+            echo "PeerJS image not found... Did you run 'dokku plugins-install' ?"
             exit 1
         fi
 	container=$(docker ps -a | grep "$CONTAINER_NAME" | awk '{print $1}')
@@ -146,56 +32,30 @@ case "$1" in
 	    id=$container
 	    docker start "$id" > /dev/null
 	else
-		if [[ ! -d "$HOST_DIR" ]]; then
-		    mkdir -p "$HOST_DIR"
-		fi
-		# Check if an existing storage volume exists
-		if [[ -d "$HOST_DIR/volume" ]]; then
-		    echo
-		    echo "-----> Reusing rabbitmq storage"
-		else
-		    mkdir -p "$HOST_DIR/volume"
-		fi
-
-		if [[ -e "$HOST_DIR/admin_pw" ]]; then
-		    admin_pw=$(cat "$HOST_DIR/admin_pw")
-		else
-		    admin_pw=$(openssl rand -base64 32|base64)
-		    echo $admin_pw > "$HOST_DIR/admin_pw"
-		    chmod 600 "$HOST_DIR/admin_pw"
-		fi
-		volume="$HOST_DIR/volume:/opt/rabbitmq"
 		# Launch container
-		id=$(docker run -v $volume --name $CONTAINER_NAME -d $CONTAINER_IMAGE /usr/bin/start-rabbitmq.sh $admin_pw)
-		sleep 5
-		dokku rabbitmq:config_load
+		id=$(docker run -v $volume --name $CONTAINER_NAME -d $CONTAINER_IMAGE /usr/bin/start-peerjs-server.sh)
 	fi
         echo
-        echo "-----> Rabbitmq container started: $CONTAINER_NAME (ID: ${id})"
+        echo "-----> PeerJS container started: $CONTAINER_NAME (ID: ${id})"
     fi
     ;;
-  rabbitmq:stop)
+  peerjs:stop)
     check_container
-    dokku rabbitmq:config_save
     docker stop ${id} > /dev/null
-    echo "Rabbitmq container stopped"
+    echo "PeerJS container stopped"
     ;;
-  rabbitmq:status)
+  peerjs:status)
     if [[ "$id" != "" ]]; then
-      echo "Rabbitmq container running with ID: ${id}"
+      echo "PeerJS container running with ID: ${id}"
     else
-      echo "Rabbitmq container not running"
+      echo "PeerJS container not running"
     fi
     ;;
   help)
     cat && cat<<EOF
-    rabbitmq:create <app>  Create a rabbitmq virtual host/user
-    rabbitmq:delete <app>  Delete specified rabbitmq vhost/user
-    rabbitmq:rebuild <app> Rebuild specified rabbitmq vhost/user
-    rabbitmq:start         Start the rabbitmq docker container if it isn't running
-    rabbitmq:stop          Stop the rabbitmq docker container
-    rabbitmq:status        Shows status of rabbitmq
-    rabbitmq:list          List all virtual hosts
+    peerjs:start         Start the peerjs docker container if it isn't running
+    peerjs:stop          Stop the peerjs docker container
+    peerjs:status        Shows status of peerjs
 EOF
     ;;
 esac
