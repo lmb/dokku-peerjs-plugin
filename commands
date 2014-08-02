@@ -33,7 +33,7 @@ case "$1" in
 	    docker start "$id" > /dev/null
 	else
 		# Launch container
-		id=$(docker run --name $CONTAINER_NAME -d $CONTAINER_IMAGE -p $PEERJS_PORT:$PEERJS_PORT /usr/bin/start-peerjs-server.sh)
+		id=$(docker run -p $PEERJS_PORT:$PEERJS_PORT --name $CONTAINER_NAME -d $CONTAINER_IMAGE /usr/bin/start-peerjs-server.sh)
 	fi
         echo
         echo "-----> PeerJS container started: $CONTAINER_NAME (ID: ${id})"
