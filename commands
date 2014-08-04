@@ -28,14 +28,19 @@ case "$1" in
             exit 1
         fi
 	container=$(docker ps -a | grep "$CONTAINER_NAME" | awk '{print $1}')
+  image=$(docker ps -a | grep "$CONTAINER_NAME" | awk '{print $2}')
 	if [[ ! -z $container ]]; then
+      if [[ ! "$CONTAINER_IMAGE" = "$image" ]]; then
+        echo "Container outdated, rebuilding"
+        docker rm $container > /dev/null
+        dokku peerjs:start
+      fi
 	    id=$container
 	    docker start "$id" > /dev/null
 	else
 		# Launch container
 		id=$(docker run -p $PEERJS_PORT:$PEERJS_PORT --name $CONTAINER_NAME -d $CONTAINER_IMAGE /usr/bin/start-peerjs-server.sh)
 	fi
-        echo
         echo "-----> PeerJS container started: $CONTAINER_NAME (ID: ${id})"
     fi
     ;;
@@ -51,6 +56,7 @@ case "$1" in
       echo "PeerJS container not running"
     fi
     ;;
+  peerjs:
   help)
     cat && cat<<EOF
     peerjs:start         Start the peerjs docker container if it isn't running
