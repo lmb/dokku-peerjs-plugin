@@ -27,20 +27,21 @@ case "$1" in
             echo "PeerJS image not found... Did you run 'dokku plugins-install' ?"
             exit 1
         fi
-	container=$(docker ps -a | grep "$CONTAINER_NAME" | awk '{print $1}')
-  image=$(docker ps -a | grep "$CONTAINER_NAME" | awk '{print $2}')
-	if [[ ! -z $container ]]; then
-      if [[ ! "$CONTAINER_IMAGE" = "$image" ]]; then
-        echo "Container outdated, rebuilding"
-        docker rm $container > /dev/null
-        dokku peerjs:start
-      fi
-	    id=$container
-	    docker start "$id" > /dev/null
-	else
-		# Launch container
-		id=$(docker run -p $PEERJS_PORT:$PEERJS_PORT --name $CONTAINER_NAME -d $CONTAINER_IMAGE /usr/bin/start-peerjs-server.sh)
-	fi
+        container=$(docker ps -a | grep "$CONTAINER_NAME" | awk '{print $1}')
+        image=$(docker ps -a | grep "$CONTAINER_NAME" | awk '{print $2}')
+        if [[ ! -z $container ]]; then
+          if [[ "$CONTAINER_IMAGE" != "$image" ]]; then
+            echo "Container outdated, rebuilding"
+            docker rm $container > /dev/null
+            dokku peerjs:start
+          else
+            id=$container
+            docker start "$id" > /dev/null
+          fi
+        else
+          # Launch container
+          id=$(docker run -p $PEERJS_PORT:$PEERJS_PORT --name $CONTAINER_NAME -d $CONTAINER_IMAGE /usr/bin/start-peerjs-server.sh)
+        fi
         echo "-----> PeerJS container started: $CONTAINER_NAME (ID: ${id})"
     fi
     ;;
@@ -49,6 +50,10 @@ case "$1" in
     docker stop ${id} > /dev/null
     echo "PeerJS container stopped"
     ;;
+  peerjs:restart)
+    dokku peerjs:stop
+    dokku peerjs:start
+    ;;
   peerjs:status)
     if [[ "$id" != "" ]]; then
       echo "PeerJS container running with ID: ${id}"
@@ -56,11 +61,11 @@ case "$1" in
       echo "PeerJS container not running"
     fi
     ;;
-  peerjs:
-  help)
+  peerjs:help)
     cat && cat<<EOF
     peerjs:start         Start the peerjs docker container if it isn't running
     peerjs:stop          Stop the peerjs docker container
+    peerjs:restart       Restart the peerjs docker container
     peerjs:status        Shows status of peerjs
 EOF
     ;;
