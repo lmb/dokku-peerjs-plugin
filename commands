@@ -34,6 +34,7 @@ case "$1" in
             echo "Container outdated, rebuilding"
             docker rm $container > /dev/null
             dokku peerjs:start
+            exit 0
           else
             id=$container
             docker start "$id" > /dev/null
